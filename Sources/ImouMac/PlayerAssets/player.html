@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Imou direct camera</title>
+<style>
+  html,body { margin:0;width:100%;height:100%;background:#101114;overflow:hidden }
+  canvas,video { position:absolute;inset:0;width:100%;height:100%;object-fit:contain }
+  video { display:none }
+</style>
+<canvas id="camera" aria-label="Live camera"></canvas>
+<video id="video" muted playsinline aria-label="Live camera"></video>
+<script>
+// Vendor diagnostics can include stream credentials; never forward them to native logs.
+for (const method of ['log','info','warn','error','debug','trace']) console[method] = () => {};
+// The vendor chooses ws on HTTP pages except port 8556. We accept TLS resources only.
+const NativeWebSocket = window.WebSocket;
+window.WebSocket = class extends NativeWebSocket {
+  constructor(url, protocols) {
+    const secure = String(url).replace(/^ws:/i, 'wss:');
+    if (new URL(secure).protocol !== 'wss:') throw new Error('Secure relay required');
+    if (protocols === undefined) super(secure);
+    else super(secure, protocols);
+  }
+};
+window.addEventListener('error', () => window.webkit?.messageHandlers?.playerStatus?.postMessage('error'));
+window.addEventListener('unhandledrejection', () => window.webkit?.messageHandlers?.playerStatus?.postMessage('error'));
+</script>
+<script src="/imou-player.js"></script>
+<script src="/WasmLib/SingleThread/liblcplay.js?v=c4e6303"></script>
+<script>
+'use strict';
+(() => {
+  const post = status => window.webkit?.messageHandlers?.playerStatus?.postMessage(status);
+  const canvas = document.getElementById('camera');
+  const video = document.getElementById('video');
+  let sdk = null;
+  let generation = 0;
+  let frameTimer = null;
+  let initialized = false;
+  let nativeTransport = null;
+  const ready = (async () => {
+    if (!window.PlaySDKInterface?.setAssetVersion('c4e6303')) throw new Error('assets');
+    window.LCPlayModule = await window.LCPlaySDK_Module({
+      locateFile: file => '/WasmLib/SingleThread/' + file + '?v=c4e6303',
+      print: () => {}, printErr: () => {},
+    });
+    // The bundle's embedded algorithm supplies encrypted URL parameters.
+    const deadline = Date.now() + 15000;
+    while (!window.__WebFrontAlgProvider) {
+      if (Date.now() > deadline) throw new Error('algorithm');
+      await new Promise(resolve => setTimeout(resolve, 25));
+    }
+    initialized = true;
+    post('ready');
+  })();
+  ready.catch(() => post('error'));
+
+  function stop(notify = true) {
+    generation++;
+    clearInterval(frameTimer);
+    frameTimer = null;
+    const old = sdk;
+    sdk = null;
+    if (old) {
+      try { old.StopPullStream(); } catch (_) {}
+      try { old.stop(); } catch (_) {}
+    }
+    video.pause();
+    video.removeAttribute('src');
+    video.load();
+    video.style.display = 'none';
+    canvas.style.display = '';
+    // Resetting the backing store also clears WebGL contents.
+    canvas.width = Math.max(1, Math.round(innerWidth));
+    canvas.height = Math.max(1, Math.round(innerHeight));
+    if (notify) post('stopped');
+  }
+  function fail(status = 'error') {
+    stop(false);
+    post(status);
+  }
+  function makeNativeTransport(sessionId, current) {
+    const callbacks = new Map();
+    let packetCallback = null;
+    let connected = false;
+    let opened = false;
+    const transport = {
+      sessionId,
+      setCallback(name, callback) { callbacks.set(name, callback); },
+      setRtpDataCallback(callback) { packetCallback = callback; },
+      // Native HTTPS authentication uses the authorized request held by Swift.
+      setUserInfo() {},
+      connect() {
+        if (current !== generation || connected || !packetCallback) return;
+        const handler = window.webkit?.messageHandlers?.nativeTransport;
+        if (!handler) throw new Error('Native transport unavailable');
+        connected = true;
+        handler.postMessage({ action: 'start', sessionId });
+      },
+      disconnect() {
+        const notify = connected;
+        connected = false;
+        packetCallback = null;
+        callbacks.clear();
+        if (nativeTransport === transport) nativeTransport = null;
+        if (notify) window.webkit?.messageHandlers?.nativeTransport?.postMessage({ action: 'stop', sessionId });
+      },
+      opened() {
+        if (!connected || opened || current !== generation) return;
+        opened = true;
+        callbacks.get('WebSocketOpenCallback')?.('video');
+        if (sdk?.encrypt == 0) sdk.setEncrypt({});
+      },
+      receive(base64) {
+        if (!connected || !opened || current !== generation || typeof base64 !== 'string' ||
+            base64.length === 0 || base64.length > 6990508) return false;
+        const binary = atob(base64);
+        // The pinned single-thread worker owns a fixed 5 MiB parser input array.
+        if (binary.length === 0 || binary.length > 5242880) return false;
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index++) bytes[index] = binary.charCodeAt(index);
+        // Native has removed the transport framing; preserve the vendor payload bytes.
+        packetCallback?.(bytes, 'video');
+        return true;
+      },
+    };
+    return transport;
+  }
+  window.directPlayer = {
+    stop,
+    receiveNativePacket(base64, sessionId) {
+      if (!nativeTransport || nativeTransport.sessionId !== sessionId) return false;
+      try { return nativeTransport.receive(base64); }
+      catch (_) { fail(); return false; }
+    },
+    nativeTransportOpened(sessionId) {
+      if (nativeTransport?.sessionId !== sessionId) return false;
+      nativeTransport.opened();
+      return true;
+    },
+    nativeTransportFailed(sessionId, status) {
+      if (nativeTransport?.sessionId !== sessionId) return false;
+      fail(['disconnected', 'timeout'].includes(status) ? status : 'error');
+      return true;
+    },
+    async checkInitialization() {
+      await ready;
+      return initialized;
+    },
+    async start(config) {
+      stop(false);
+      const current = generation;
+      post('loading');
+      try {
+        await ready;
+        if (current !== generation) return;
+        if (!config || !['rtsv','rtsp'].includes(config.streamType) ||
+            typeof config.playUrl !== 'string' || !config.playUrl.startsWith('rtsp://')) {
+          fail('unsupported'); return;
+        }
+        const resource = new URL(config.playUrl);
+        const encrypt = resource.searchParams.get('encrypt');
+        // shortcut: MIKEY needs a consumer key endpoint; reject it until that endpoint is recovered.
+        if (encrypt !== null && !['-1','0','2','3','5'].includes(encrypt)) {
+          fail('encryption'); return;
+        }
+        sdk = new window.PlaySDKInterface(false);
+        const player = sdk;
+        let lastFrame = Date.now();
+        let receivedFrame = false;
+        let lastTimestamp;
+        let decodeMode;
+        let changingFrames = 0;
+        const presented = timestamp => {
+          if (current !== generation || sdk !== player || timestamp == null || timestamp === lastTimestamp) return;
+          lastTimestamp = timestamp;
+          lastFrame = Date.now();
+          if (++changingFrames >= 2 && !receivedFrame) { receivedFrame = true; post('playing'); }
+        };
+        const presentedVideo = (_now, metadata) => {
+          if (current !== generation || sdk !== player) return;
+          presented(metadata.mediaTime);
+          video.requestVideoFrameCallback(presentedVideo);
+        };
+        if (video.requestVideoFrameCallback) video.requestVideoFrameCallback(presentedVideo);
+        player.setCallback('VideoFrameInfo', info => {
+          if (current !== generation || sdk !== player) return;
+          // Hardware callbacks describe submitted compressed frames, not displayed video.
+          if (decodeMode === 'canvas') presented(info?.timeStamp);
+        });
+        player.setCallback('DecodeStart', info => {
+          if (current !== generation) return;
+          decodeMode = info?.decodeMode;
+          const hardware = info?.decodeMode === 'video';
+          video.style.display = hardware ? 'block' : 'none';
+          canvas.style.display = hardware ? 'none' : 'block';
+        });
+        player.setCallback('Error', () => current === generation && fail());
+        player.setCallback('Disconnect', () => current === generation && fail('disconnected'));
+        player.setCallback('WebSocketCloseCallback', () => current === generation && fail('disconnected'));
+        player.setCallback('StreamPlayOver', () => current === generation && fail('disconnected'));
+        player.setCallback('DigitalSignCallBack', (_a, _b, result) => {
+          if (result === 0 && current === generation) fail('encryption');
+        });
+        player.setCallback('wsPlay', () => {
+          if (current !== generation) return;
+          if (config.streamType === 'rtsv') player.setEncrypt({});
+          else fail('encryption');
+        });
+        player.Init({
+          canvasElem: canvas, videoElem: video,
+          bPlayBack: 0, strDecodeFilePath: '/WasmLib/SingleThread',
+          log_c: false, log_js: false, env: 2, dpr: 0,
+          width: Math.max(1, innerWidth), height: Math.max(1, innerHeight),
+        });
+        player.setVolume(0);
+        const decoderDeadline = Date.now() + 15000;
+        while (!player.initCompleted) {
+          if (current !== generation) return;
+          if (Date.now() > decoderDeadline) { fail(); return; }
+          await new Promise(resolve => setTimeout(resolve, 25));
+        }
+        if (current !== generation) return;
+        // Match the SDK's automatic playback-token credential path; code is an optional user override.
+        if (typeof config.deviceLoginName === 'string') player.devLoginName = config.deviceLoginName;
+        if (typeof config.deviceLoginPassword === 'string') player.devLoginPassword = config.deviceLoginPassword;
+        if (config.nativeSessionId != null) {
+          if (config.streamType !== 'rtsv' || typeof config.nativeSessionId !== 'string' ||
+              config.nativeSessionId.length === 0 || config.nativeSessionId.length > 128) {
+            fail('unsupported'); return;
+          }
+          // StartPullStream retains its normal encryption setup, while Swift sends the
+          // exact consumer HTTPS resource instead of the SDK's sourceId request shape.
+          nativeTransport = makeNativeTransport(config.nativeSessionId, current);
+          player.webSocket = nativeTransport;
+          if (encrypt !== null) player.encrypt = encrypt;
+        }
+        frameTimer = setInterval(() => {
+          if (current !== generation) return;
+          if (Date.now() - lastFrame > (receivedFrame ? 15000 : 30000))
+            fail(receivedFrame ? 'stalled' : 'timeout');
+        }, 1000);
+        await player.StartPullStream({
+          deviceId: config.deviceId, channelId: config.channelId,
+          playSubtype: String(config.streamId), playType: 'real', code: config.code || '',
+        }, {
+          playUrl: config.playUrl, streamType: config.streamType,
+          playToken: config.playToken || '', playTokenKey: config.playTokenKey || '',
+        });
+        // The SDK otherwise buffers encrypt=0 packets waiting for a nonexistent key.
+        if (current === generation && encrypt === '0') player.setEncrypt({});
+      } catch (_) { if (current === generation) fail(); }
+    },
+  };
+  addEventListener('pagehide', () => stop(false));
+  addEventListener('resize', () => {
+    if (sdk) sdk.resize(Math.max(1, innerWidth), Math.max(1, innerHeight));
+  });
+})();
+</script>
+</html>

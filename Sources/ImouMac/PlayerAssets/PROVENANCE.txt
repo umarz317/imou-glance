@@ -1,0 +1,16 @@
+Imou Web Video SDK V1.5.0, pinned 2026-10-16.
+Vendor header build: 2026-09-23T02:11:10.147Z. Asset cache version: c4e6303.
+These vendor files are unchanged. player.html is the local native-app bridge.
+Sources use https://open.imoulife.com/imou-player/ as their base URL.
+
+imou-player.js
+SHA256 d32f81e18b8d79d039f59fc091e7c53e96693dd615867932c17b41e79f15ecf4
+WasmLib/SingleThread/liblcplay.js
+SHA256 23f4fa43adb98ad9ac7bf7fa897f6ea08a5491a7ebe2de1a285f3174e9c043c3
+WasmLib/SingleThread/liblcplay.wasm
+SHA256 d1c127b86345a01991639de38438bf7b0b9d2357b7f9f1b7ad661dbd19f2320a
+WasmLib/SingleThread/PlaySdkWorker.js
+SHA256 48918f1d17f82f92d4f7e0617904870770cea12d318733b562e2df0f815a2455
+
+Documentation: https://open.imoulife.com/book/js/sdk.html
+Runtime bridge evidence and limitations: analysis/direct-media-research.md

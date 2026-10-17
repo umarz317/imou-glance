@@ -1,0 +1,12 @@
+.build/
+build/
+.DS_Store
+.env
+.env.*
+# Publish research notes, keeping extracted artifacts and runtime evidence local.
+/analysis/*
+!/analysis/*.md
+
+# Unused inspection capture with private camera footage.
+/docs/screenshot.jpg
+/docs/screenshots/
