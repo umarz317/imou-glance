@@ -59,10 +59,17 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) { model.shutdown() }
 
-    /// Standard About panel: name, icon, version and the "Unofficial" line from Info.plist.
+    /// Standard About panel: name, icon, version, the "Unofficial" line from Info.plist and a one-line description.
     static func showAbout() {
+        let style = NSMutableParagraphStyle()
+        style.alignment = .center
+        let credits = NSAttributedString(string: "Your Imou cameras, live from the menu bar.", attributes: [
+            .font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize),
+            .foregroundColor: NSColor.secondaryLabelColor,
+            .paragraphStyle: style
+        ])
         NSApp.activate()
-        NSApp.orderFrontStandardAboutPanel(nil)
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
     }
 
     @objc private func showAboutFromMenu() { Self.showAbout() }
