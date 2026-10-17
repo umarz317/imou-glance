@@ -24,7 +24,6 @@ Imou sign-in
 
 The app uses Imou's cloud relay. "Direct" means it makes its own account and
 media connections; it does not mean every connection is local or peer-to-peer.
-It does not capture the iPad app's screen.
 
 ## 1. Identify the shipped components
 
@@ -184,7 +183,7 @@ footage visible.
 
 Hardware **Live** status now requires distinct browser-presented frames,
 rather than compressed-frame callbacks alone. Garage footage with an advancing
-camera timestamp was observed with the iPad app closed. Main Gate also
+camera timestamp was observed. Main Gate also
 rendered footage, with a smaller verification scope.
 
 Code: [DirectPlayerView.swift](../Sources/ImouMac/DirectPlayerView.swift) and

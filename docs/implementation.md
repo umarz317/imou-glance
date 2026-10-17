@@ -1,7 +1,5 @@
 # Direct Imou menu bar client
 
-This replaces the earlier ScreenCaptureKit companion. The running app contains no window-capture or iPad-launch path. The earlier app artifact is preserved under ignored `build/previous-mirror/`.
-
 ## Implemented path
 
 1. Native SwiftUI MenuBarExtra, window-style popover, secure password field and camera picker.
@@ -116,7 +114,7 @@ After the user approved the current session, runtime inspection confirmed HTTP 2
 
 The live session exposed independent video/audio RTP source and sequence spaces, plus a genuine sequence gap. The adapter now assembles complete bounded DHAV frames per channel+SSRC, permits private payload-type changes, and resynchronizes after gaps. See the corrected native evidence in `analysis/native-http-credentials-and-rtp.md`.
 
-The final black-preview cause was a display-rule conflict: the hardware callback cleared the video's inline display, revealing the stylesheet's `display:none`, and hid the canvas as well. Explicit `display:block` fixed the video surface. Muted autoplay is permitted, and hardware Live status now requires distinct browser-presented frames. Actual Garage footage with an advancing on-camera timestamp was observed in both the regular window and menu popover, with no iPad app process running. Main Gate also rendered an image, but changing frames were only independently verified for Garage. Long-duration uninterrupted playback remains unverified; changing preview surfaces during inspection restarted sessions, so that activity is not a continuous stability test.
+The final black-preview cause was a display-rule conflict: the hardware callback cleared the video's inline display, revealing the stylesheet's `display:none`, and hid the canvas as well. Explicit `display:block` fixed the video surface. Muted autoplay is permitted, and hardware Live status now requires distinct browser-presented frames. Actual Garage footage with an advancing on-camera timestamp was observed in both the regular window and menu popover. Main Gate also rendered an image, but changing frames were only independently verified for Garage. Long-duration uninterrupted playback remains unverified; changing preview surfaces during inspection restarted sessions, so that activity is not a continuous stability test.
 
 The release app signature verifies, JavaScript syntax checks pass, and all 48 Swift tests pass. User-requested local test sign-in reads `.env` only with `--credentials-file`; Git ignores the user-managed file. No account tokens, camera keys or authenticated URLs are persisted. Detailed redacted evidence and IPA/REA results are in `analysis/relay-ats-follow-up.md`.
 

@@ -12,120 +12,125 @@
   <img src="https://img.shields.io/badge/Unofficial-B42318" alt="Unofficial">
 </p>
 
-An **unofficial** macOS menu bar app for viewing cameras from your Imou
-account. It signs in and streams directly. The iPad app does not need to run,
-and no Screen Recording permission is required.
-
-> [!IMPORTANT]
-> Imou Glance is an independent personal project. It is **not affiliated with,
-> endorsed by, or supported by Imou** or its parent companies. It talks to
-> Imou's services through interfaces learned by reverse engineering, which Imou
-> may change or block at any time. Use it at your own risk; see
-> [Disclaimers](#disclaimers).
+<p align="center">
+  <b>Your Imou cameras, live from the macOS menu bar.</b>
+</p>
 
 <p align="center">
   <img src="docs/screenshots/live.webp" width="420" alt="Imou Glance menu bar popover showing one live camera with camera, quality and layout controls">
 </p>
 
-## What it does
+> [!IMPORTANT]
+> **Unofficial.** Imou Glance is an independent personal project, **not affiliated
+> with, endorsed by, or supported by Imou** or its parent companies. It uses
+> reverse-engineered interfaces that Imou may change or block at any time. Use it
+> at your own risk; see [Disclaimers](#disclaimers).
 
-- Signs in with an Imou email address or phone number.
-- Handles Imou's security puzzle and authorization of this Mac.
-- Lists your cameras and retrieves their camera passwords automatically.
-- Shows a muted live preview, with one-, two-, or four-camera layouts where available.
-- Offers each camera's advertised video qualities, with a separate choice per camera.
-- Can remember your sign-in in this Mac's Keychain.
+## Features
 
-Changing Garage camera frames were confirmed on **17 October 2026** with the
-iPad app closed. Main Gate also displayed footage. A complete human CAPTCHA
-flow was accepted and returned the camera list. Long uninterrupted playback
-and every camera model have not been verified.
+- **Sign in** with your Imou email or phone number, including Imou's security
+  puzzle and "Authorize this Mac" step.
+- **Watch live**, muted, one camera at a time or **two or four at once**.
+- **Pick video quality** per camera from what the camera offers.
+- **Recover on its own** after drops, stalls and sleep.
+- **Remember** your sign-in (Keychain), last camera, quality and layout.
 
-## Build and open
+## Install
 
-The app targets Apple Silicon Macs running macOS 15.2 or later. Building the
-current interface requires Xcode with the macOS 26 SDK or newer; the glass
-appearance has a fallback on older supported macOS versions.
-
-From this project folder, run:
+Requires an Apple Silicon Mac on **macOS 15.2 or later**. Building needs Xcode
+with the macOS 26 SDK or newer (the glass look falls back gracefully on older
+macOS).
 
 ```sh
 bash scripts/build-app.sh
 open "build/Imou Glance.app"
 ```
 
-The build creates `build/Imou Glance.app` and verifies its local ad hoc signature.
+The build creates `build/Imou Glance.app` with a local ad hoc signature.
 
-## Start watching
+## Use
 
-1. Click the video icon in the macOS menu bar.
-2. Choose **Email** or **Phone** and enter your Imou credentials. Phone sign-in
-   also needs the country code.
-3. If **Verify it's you** appears, click **Verify** and complete the puzzle.
-4. If **Authorize this Mac** appears, request the code, enter the code delivered
-   to your registered account, and click **Authorize This Mac**.
-5. Choose a camera. Its camera password is retrieved automatically.
-6. Use the layout buttons to show multiple cameras. Click a tile to open it on its own.
+1. Click the **video icon** in the menu bar.
+2. Choose **Email** or **Phone** and sign in. Phone needs the country code.
+3. If **Verify it's you** appears, click **Verify** and finish the puzzle.
+4. If **Authorize this Mac** appears, request the code and enter it.
+5. Pick a camera. Its camera password is fetched for you.
 
-Closing the preview stops its streams. Opening it again requests fresh streams.
-Use the quality menu on the preview or a grid tile to change resolution. Garage
-offers 3MP, 1080P and 720P; Main Gate offers 2K, 1080P and 720P. Changing quality
-reconnects that camera. Quality choices and the last selected camera are remembered across launches until Sign Out; the 1, 2 or 4 camera layout is always remembered.
+Use the **layout switch** in the header for two or four cameras; click a tile
+to open it on its own. The **quality menu** on the video (or on each tile)
+changes resolution.
 
-If a stream drops, stalls for 15 seconds, or its player crashes, that camera
-reconnects by itself after 2, 4, 8, 16, then every 30 seconds while it is on
-screen; a minute of healthy playback resets the wait. Network errors while
-requesting a stream retry the same way, and the app reconnects right after the
-Mac wakes. **Reconnect** retries at once. For normal use, keep one preview surface
-open; the inspection window and menu popover can affect each other's status.
+## Good to know
 
-## Remembering your account
+- **Closing the popover stops the video.** Opening it again starts fresh streams.
+- **Dropped streams reconnect automatically.** A drop, a 15-second stall or a
+  player crash retries after 2, 4, 8, 16, then every 30 seconds while the camera
+  is on screen. A minute of healthy video resets the wait. The app also
+  reconnects right after the Mac wakes. **Reconnect** retries immediately.
+- **Use one preview at a time.** The `--show` inspection window and the menu
+  popover can affect each other's status.
 
-**Remember me in Keychain** is checked by default. After a successful sign-in,
-the app saves your account, password, and country code to this Mac's login
-Keychain and uses them at the next launch.
+### What is remembered
 
-- **Sign Out** removes the saved sign-in and clears the active session.
-- **Quit** clears the active session but keeps the saved sign-in.
-- Camera keys, account tokens, and authenticated stream URLs stay in memory.
-- The app does not write those secrets to logs or ordinary files. A random
-  terminal identifier, each camera's chosen video quality and the last selected
-  camera are stored in preferences. Sign Out clears the camera choices.
+| Item | Where | Cleared by |
+| --- | --- | --- |
+| Account, password, country code (if **Remember me** is on) | Login Keychain, this Mac only | **Sign Out** |
+| Last camera and per-camera quality | Preferences | **Sign Out** |
+| 1 / 2 / 4 camera layout | Preferences | Never (it's a view setting) |
+| Random terminal identifier | Preferences | Never |
+| Session, account tokens, camera keys, stream URLs | Memory only | Quit or Sign Out |
 
-## Relay certificate behavior
+**Quit** ends the session but keeps everything saved. Secrets are never written
+to logs or ordinary files.
 
-The tested Imou relay presents an expired certificate that does not match its
-address. As requested for this app, successful sign-in automatically allows
-**that one exact certificate** until sign-out or quit. Other certificates must
-pass normal validation. Account API validation and macOS trust settings are
-not changed.
+## Security note: relay certificate
 
-The connection remains encrypted, but someone holding the pinned certificate's
-private key could impersonate that relay. See the [reverse engineering guide](docs/reverse-engineering.md#6-connect-to-the-relay)
-for the evidence and implementation.
+Imou's tested relay presents an **expired certificate that doesn't match its
+address**. After a successful sign-in, the app allows **that one exact
+certificate** (pinned by fingerprint) until sign-out or quit. Every other
+certificate still needs normal validation, and macOS trust settings are not
+changed.
 
-## Local development
+The connection stays encrypted, but anyone holding that certificate's private
+key could impersonate the relay. Details: [reverse engineering guide, step 6](docs/reverse-engineering.md#6-connect-to-the-relay).
 
-Open a regular inspection window:
+## Troubleshooting
+
+| What you see | What to do |
+| --- | --- |
+| Account or password rejected | Check **Email** vs **Phone** and re-enter your details. |
+| A security puzzle | Complete it; sign-in then continues. Imou often asks after a wrong password. |
+| CAPTCHA `-50106` or validation `11010` | Rebuild from current source; older builds used the wrong CAPTCHA setup ([fix report](analysis/captcha-provider-fix.md)). |
+| Black video or **Stopped** | Wait for the automatic reconnect or click **Reconnect**. If it keeps happening, note the error shown (never share a stream URL). |
+| Unsupported media or encryption | That camera setup needs more protocol work. |
+
+## Status
+
+Verified on **17 October 2026**: live video from two cameras and a full sign-in
+including the human CAPTCHA. Not yet verified: very
+long sessions and other camera models.
+
+<details>
+<summary><b>Development</b></summary>
+
+Open the UI in a regular window for inspection:
 
 ```sh
 "build/Imou Glance.app/Contents/MacOS/ImouPeek" --show
 ```
 
-For local testing, an explicitly supplied `.env` file can provide
-`IMOU_EMAIL`, `IMOU_PASSWORD`, and optional `IMOU_COUNTRY_CODE`, one literal
-`KEY=value` per line. Values are not evaluated as shell code. Do not add shell
-quotes around them.
+Sign in from a local `.env` file (one literal `KEY=value` per line, no quotes,
+never evaluated as shell). Keys: `IMOU_EMAIL`, `IMOU_PASSWORD`, optional
+`IMOU_COUNTRY_CODE`.
 
 ```sh
 "build/Imou Glance.app/Contents/MacOS/ImouPeek" --show --credentials-file "$PWD/.env"
 ```
 
-This file remains your responsibility. It is ignored by Git, is never printed
-by the app, and is not copied to the Keychain by this launch option. Do not
-share its contents.
+`.env` is ignored by Git, never printed, and not copied to the Keychain. Keep
+it private.
 
-Run the tests:
+Run the tests (the Keychain test needs host Keychain access):
 
 ```sh
 env CLANG_MODULE_CACHE_PATH="$PWD/.build/ModuleCache" \
@@ -135,51 +140,35 @@ env CLANG_MODULE_CACHE_PATH="$PWD/.build/ModuleCache" \
     --config-path .build/config --security-path .build/security -debug-info-format none
 ```
 
-The last recorded validation passed **50 tests**: 49 core tests and the
-isolated Keychain test, which requires host Keychain access. Tests alone do
-not prove live playback.
+Passing tests don't prove live playback.
 
-## Troubleshooting
+</details>
 
-| What you see | What to do |
-| --- | --- |
-| Account or password rejected | Check the selected sign-in method and re-enter the credentials. |
-| A security puzzle | Complete it yourself; the app then resumes sign-in. |
-| CAPTCHA `-50106` or validation `11010` | Rebuild the current source. Earlier builds used the wrong CAPTCHA provider and validation signing. See the [fix report](analysis/captcha-provider-fix.md). |
-| Black preview or **Stopped** | Use **Reconnect** and keep one preview surface open. If it recurs, record the displayed error without copying a stream URL. |
-| Unsupported media or encryption | That camera configuration needs further protocol work. |
+## Further reading
 
-## More detail
-
-- [Reverse engineering guide](docs/reverse-engineering.md): simple steps, discoveries, and evidence.
-- [Implementation history](docs/implementation.md): chronological research notes; early limitations may have been resolved by later entries.
-- [Vendor asset provenance](Sources/ImouMac/PlayerAssets/PROVENANCE.txt): decoder versions and checksums.
+- [Reverse engineering guide](docs/reverse-engineering.md): how it works, step by step, with evidence.
+- [Implementation history](docs/implementation.md): research notes in order; later entries may resolve earlier limits.
+- [Player asset provenance](Sources/ImouMac/PlayerAssets/PROVENANCE.txt): decoder versions and checksums.
 
 ## Disclaimers
 
-- **Unofficial.** "Imou" and related names and logos are trademarks of their
-  respective owners and are used here only to describe compatibility. This
-  project is not an official Imou product, and Imou does not provide support
-  for it.
-- **No warranty.** The software is provided "as is", without warranty of any
-  kind. The authors are not liable for any damage, data loss, account action,
-  or missed events arising from its use.
-- **Not for safety-critical monitoring.** Streams can drop, stall, or stop
-  without notice. Do not rely on this app for security, emergency, or
-  life-safety purposes; use Imou's official apps and alerts for that.
-- **Reverse-engineered interfaces.** Sign-in, device-key retrieval, and media
-  negotiation follow behaviour observed in Imou's own clients. Using them may
-  conflict with Imou's terms of service, and an Imou update can break the app
-  without warning. Review the terms that apply to your account before use.
-- **Your account and cameras only.** Use the app only with an account and
-  cameras you own or are authorized to access, and follow the privacy and
-  recording laws where the cameras are installed.
-- **Security trade-offs.** The app pins one expired relay certificate to make
-  playback work (see [Relay certificate behavior](#relay-certificate-behavior))
-  and can store your Imou password in the macOS Keychain when you choose to.
-  Understand these choices before using it on a shared or managed Mac.
-- **Third-party components.** The bundled player files in
-  `Sources/ImouMac/PlayerAssets` are unmodified Imou Web Video SDK assets and
-  remain the property of their owners; see
+- **Unofficial.** "Imou" names and logos are trademarks of their owners, used
+  only to describe compatibility. This is not an Imou product, and Imou does
+  not support it.
+- **No warranty.** Provided "as is", without warranty of any kind. The authors
+  aren't liable for damage, data loss, account action or missed events.
+- **Not for safety-critical monitoring.** Video can drop or stop without
+  notice. For security, emergencies or life safety, use Imou's official apps
+  and alerts.
+- **Reverse-engineered interfaces.** Sign-in, camera keys and streaming follow
+  Imou's own clients. This may conflict with Imou's terms of service, and an
+  Imou update can break the app. Check the terms for your account.
+- **Your cameras only.** Use only accounts and cameras you own or may access,
+  and follow local privacy and recording laws.
+- **Security trade-offs.** The app pins one expired relay certificate (see
+  [Security note](#security-note-relay-certificate)) and can store your Imou
+  password in the Keychain. Consider this on shared or managed Macs.
+- **Third-party files.** The player files in `Sources/ImouMac/PlayerAssets` are
+  unmodified Imou Web Video SDK assets owned by their authors; see
   [PROVENANCE.txt](Sources/ImouMac/PlayerAssets/PROVENANCE.txt).
 - **Screenshots** show the author's own cameras.
