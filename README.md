@@ -16,6 +16,10 @@ A macOS menu bar app for viewing cameras from your Imou account. It signs in
 and streams directly. The iPad app does not need to run, and no Screen
 Recording permission is required.
 
+<p align="center">
+  <img src="docs/screenshots/live.webp" width="420" alt="Imou Glance menu bar popover showing one live camera with camera, quality and layout controls">
+</p>
+
 ## What it does
 
 - Signs in with an Imou email address or phone number.
