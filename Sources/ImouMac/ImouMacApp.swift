@@ -59,6 +59,14 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
 
     func applicationWillTerminate(_ notification: Notification) { model.shutdown() }
 
+    /// Standard About panel: name, icon, version and the "Unofficial" line from Info.plist.
+    static func showAbout() {
+        NSApp.activate()
+        NSApp.orderFrontStandardAboutPanel(nil)
+    }
+
+    @objc private func showAboutFromMenu() { Self.showAbout() }
+
     @objc private func togglePopover() {
         guard let button = statusItem?.button else { return }
         if popover.isShown { popover.performClose(nil); return }
@@ -72,6 +80,8 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
     private static func mainMenu() -> NSMenu {
         let main = NSMenu()
         let app = NSMenu()
+        app.addItem(withTitle: "About Imou Glance", action: #selector(AppLifecycle.showAboutFromMenu), keyEquivalent: "")
+        app.addItem(.separator())
         app.addItem(withTitle: "Quit Imou Glance", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         let edit = NSMenu(title: "Edit")
         edit.addItem(withTitle: "Undo", action: Selector(("undo:")), keyEquivalent: "z")

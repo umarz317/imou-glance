@@ -371,6 +371,8 @@ final class PreviewViewController: NSViewController, NSTextFieldDelegate {
 
     @objc private func showOptions() {
         let menu = NSMenu()
+        menu.addItem(item("About Imou Glance", #selector(showAbout)))
+        menu.addItem(.separator())
         if model.signedIn { menu.addItem(item("Sign Out", #selector(signOutAndForget))) }
         let quit = NSMenuItem(title: "Quit Imou Glance", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
         menu.addItem(quit)
@@ -401,6 +403,7 @@ final class PreviewViewController: NSViewController, NSTextFieldDelegate {
     @objc private func signOut() { codeField.stringValue = ""; model.signOut() }
     @objc private func signOutAndForget() { codeField.stringValue = ""; model.signOut(forget: true) }
     @objc private func sendCode() { model.sendTerminalCode() }
+    @objc private func showAbout() { AppLifecycle.showAbout() }
     @objc private func reconnect() { model.reconnectNow() }
 
     @objc private func authorize() {

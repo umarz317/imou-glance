@@ -9,12 +9,19 @@
   <img src="https://img.shields.io/badge/Apple%20Silicon-arm64-555555" alt="Apple Silicon">
   <img src="https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white" alt="Swift 5.9">
   <img src="https://img.shields.io/badge/UI-AppKit%20%C2%B7%20Liquid%20Glass-F06620" alt="AppKit with Liquid Glass">
-  <img src="https://img.shields.io/badge/menu%20bar-app-6E6E73" alt="Menu bar app">
+  <img src="https://img.shields.io/badge/Unofficial-B42318" alt="Unofficial">
 </p>
 
-A macOS menu bar app for viewing cameras from your Imou account. It signs in
-and streams directly. The iPad app does not need to run, and no Screen
-Recording permission is required.
+An **unofficial** macOS menu bar app for viewing cameras from your Imou
+account. It signs in and streams directly. The iPad app does not need to run,
+and no Screen Recording permission is required.
+
+> [!IMPORTANT]
+> Imou Glance is an independent personal project. It is **not affiliated with,
+> endorsed by, or supported by Imou** or its parent companies. It talks to
+> Imou's services through interfaces learned by reverse engineering, which Imou
+> may change or block at any time. Use it at your own risk; see
+> [Disclaimers](#disclaimers).
 
 <p align="center">
   <img src="docs/screenshots/live.webp" width="420" alt="Imou Glance menu bar popover showing one live camera with camera, quality and layout controls">
@@ -147,3 +154,32 @@ not prove live playback.
 - [Reverse engineering guide](docs/reverse-engineering.md): simple steps, discoveries, and evidence.
 - [Implementation history](docs/implementation.md): chronological research notes; early limitations may have been resolved by later entries.
 - [Vendor asset provenance](Sources/ImouMac/PlayerAssets/PROVENANCE.txt): decoder versions and checksums.
+
+## Disclaimers
+
+- **Unofficial.** "Imou" and related names and logos are trademarks of their
+  respective owners and are used here only to describe compatibility. This
+  project is not an official Imou product, and Imou does not provide support
+  for it.
+- **No warranty.** The software is provided "as is", without warranty of any
+  kind. The authors are not liable for any damage, data loss, account action,
+  or missed events arising from its use.
+- **Not for safety-critical monitoring.** Streams can drop, stall, or stop
+  without notice. Do not rely on this app for security, emergency, or
+  life-safety purposes; use Imou's official apps and alerts for that.
+- **Reverse-engineered interfaces.** Sign-in, device-key retrieval, and media
+  negotiation follow behaviour observed in Imou's own clients. Using them may
+  conflict with Imou's terms of service, and an Imou update can break the app
+  without warning. Review the terms that apply to your account before use.
+- **Your account and cameras only.** Use the app only with an account and
+  cameras you own or are authorized to access, and follow the privacy and
+  recording laws where the cameras are installed.
+- **Security trade-offs.** The app pins one expired relay certificate to make
+  playback work (see [Relay certificate behavior](#relay-certificate-behavior))
+  and can store your Imou password in the macOS Keychain when you choose to.
+  Understand these choices before using it on a shared or managed Mac.
+- **Third-party components.** The bundled player files in
+  `Sources/ImouMac/PlayerAssets` are unmodified Imou Web Video SDK assets and
+  remain the property of their owners; see
+  [PROVENANCE.txt](Sources/ImouMac/PlayerAssets/PROVENANCE.txt).
+- **Screenshots** show the author's own cameras.
