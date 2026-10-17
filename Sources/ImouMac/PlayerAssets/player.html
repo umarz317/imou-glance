@@ -238,7 +238,8 @@ window.addEventListener('unhandledrejection', () => window.webkit?.messageHandle
         }
         frameTimer = setInterval(() => {
           if (current !== generation) return;
-          if (Date.now() - lastFrame > (receivedFrame ? 15000 : 30000))
+          // The first frame waits for the camera's relay, which can take 20-30 s on a slow wake-up.
+          if (Date.now() - lastFrame > (receivedFrame ? 15000 : 60000))
             fail(receivedFrame ? 'stalled' : 'timeout');
         }, 1000);
         await player.StartPullStream({

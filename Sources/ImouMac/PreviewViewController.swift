@@ -33,6 +33,12 @@ final class PreviewViewController: NSViewController, NSTextFieldDelegate {
     private let methodControl = NSSegmentedControl(labels: ["Email", "Phone"], trackingMode: .selectOne, target: nil, action: nil)
     private var usesPhone: Bool { methodControl.selectedSegment == 1 }
     private let rememberCheckbox = NSButton(checkboxWithTitle: "Remember me in Keychain", target: nil, action: nil)
+    private let qrSignInButton = NSButton()
+
+    // QR sign-in
+    private let qrScreen = screenStack()
+    private let qrImage = NSImageView()
+    private var shownQRCode: Data?
 
     // Captcha
     private let captchaScreen = screenStack()
@@ -101,8 +107,8 @@ final class PreviewViewController: NSViewController, NSTextFieldDelegate {
         footer.addArrangedSubview(statusRow)
         footer.addArrangedSubview(footerMessage)
         footerMessage.widthAnchor.constraint(equalToConstant: Self.contentWidth).isActive = true
-        buildSignIn(); buildCaptcha(); buildTerminal(); buildCamera(); buildNoCameras()
-        for section in [header(), signInScreen, captchaScreen, terminalScreen, cameraScreen, noCamerasScreen, footer] {
+        buildSignIn(); buildQRCode(); buildCaptcha(); buildTerminal(); buildCamera(); buildNoCameras()
+        for section in [header(), signInScreen, qrScreen, captchaScreen, terminalScreen, cameraScreen, noCamerasScreen, footer] {
             root.addArrangedSubview(section)
             section.widthAnchor.constraint(equalTo: root.widthAnchor).isActive = true
             // Sections keep their natural height so fittingSize sizes the popover exactly.
@@ -148,14 +154,15 @@ final class PreviewViewController: NSViewController, NSTextFieldDelegate {
         let current: NSView
         if model.captcha != nil { current = captchaScreen }
         else if model.terminalVerification { current = terminalScreen }
+        else if model.loginQRCode != nil { current = qrScreen }
         else if model.signedIn { current = model.cameras.isEmpty ? noCamerasScreen : cameraScreen }
         else { current = signInScreen }
-        for screen in [signInScreen, captchaScreen, terminalScreen, cameraScreen, noCamerasScreen] {
+        for screen in [signInScreen, qrScreen, captchaScreen, terminalScreen, cameraScreen, noCamerasScreen] {
             screen.isHidden = screen !== current
         }
 
         // Screens with their own progress (button title, video overlay, loading list) skip the header spinner.
-        let headerSpinner = model.busy && (current === captchaScreen || current === terminalScreen)
+        let headerSpinner = model.busy && [captchaScreen, terminalScreen, qrScreen].contains { $0 === current }
         headerSpinner ? spinner.startAnimation(nil) : spinner.stopAnimation(nil)
         spinner.isHidden = !headerSpinner
         statusLabel.stringValue = model.status
@@ -167,6 +174,10 @@ final class PreviewViewController: NSViewController, NSTextFieldDelegate {
         footerMessage.isHidden = onSignIn || detail.isEmpty
 
         renderSignIn()
+        if shownQRCode != model.loginQRCode {
+            shownQRCode = model.loginQRCode
+            qrImage.image = shownQRCode.flatMap(NSImage.init(data:))
+        }
         renderCaptcha()
         renderNoCameras()
         renderTerminal(visible: current === terminalScreen)
@@ -191,6 +202,7 @@ final class PreviewViewController: NSViewController, NSTextFieldDelegate {
         rememberCheckbox.isEnabled = !model.busy
         // Kept enabled: a disabled glass button is nearly invisible. signIn() points at the missing field instead.
         signInButton.isEnabled = !model.busy
+        qrSignInButton.isEnabled = !model.busy
     }
 
     private func renderCaptcha() {
@@ -392,6 +404,8 @@ final class PreviewViewController: NSViewController, NSTextFieldDelegate {
         passwordField.stringValue = ""
     }
 
+    @objc private func signInWithQRCode() { model.signInWithQRCode(remember: rememberCheckbox.state == .on) }
+
     @objc private func changeSignInMethod() {
         areaCodeField.isHidden = !usesPhone
         accountField.placeholderString = usesPhone ? "Phone number" : "Email address"
@@ -502,12 +516,17 @@ final class PreviewViewController: NSViewController, NSTextFieldDelegate {
             methodControl, accountRow, passwordField, rememberCheckbox, prominentHosts[signInButton]!,
             signInMessage
         ])
+        configure(qrSignInButton, title: "Sign In with QR Code", action: #selector(signInWithQRCode))
+        qrSignInButton.image = symbol("qrcode", size: 12)
+        qrSignInButton.imagePosition = .imageLeading
+        qrSignInButton.toolTip = "Approve this Mac from the Imou Life app, including accounts that use Sign in with Apple."
+        signInScreen.addArrangedSubview(qrSignInButton)
         signInScreen.setCustomSpacing(14, after: signInScreen.arrangedSubviews[0])
         signInScreen.setCustomSpacing(18, after: rememberCheckbox)
         signInScreen.setCustomSpacing(14, after: prominentHosts[signInButton]!)
         signInScreen.setCustomSpacing(14, after: signInMessage)
         rememberCheckbox.state = .on
-        rememberCheckbox.toolTip = "Saved only in this Mac’s Keychain. Sign Out removes it. Camera keys are never saved."
+        rememberCheckbox.toolTip = "Saved only in this Mac’s Keychain: your password, or for QR sign-in the Imou session. Sign Out removes it. Camera keys are never saved."
         rememberCheckbox.font = .systemFont(ofSize: 12)
         if let saved = SavedCredentials.load() {
             methodControl.selectedSegment = saved.areaCode.isEmpty ? 0 : 1
@@ -516,6 +535,27 @@ final class PreviewViewController: NSViewController, NSTextFieldDelegate {
             accountField.placeholderString = saved.areaCode.isEmpty ? "Email address" : "Phone number"
             accountField.stringValue = saved.account
         }
+    }
+
+    private func buildQRCode() {
+        qrImage.imageScaling = .scaleProportionallyUpOrDown
+        qrImage.setAccessibilityLabel("Sign-in QR code")
+        // The code is dark-on-light; keep a light card behind it in Dark Mode so phones can read it.
+        qrImage.wantsLayer = true
+        qrImage.layer?.backgroundColor = NSColor.white.cgColor
+        qrImage.layer?.cornerRadius = 12
+        NSLayoutConstraint.activate([qrImage.widthAnchor.constraint(equalToConstant: 200),
+                                     qrImage.heightAnchor.constraint(equalToConstant: 200)])
+        let cancel = NSButton()
+        configure(cancel, title: "Cancel", action: #selector(signOut))
+        addFull(qrScreen, [
+            label("Scan to sign in", size: 17, weight: .semibold),
+            label("Open the Imou Life app on your phone, scan this code, then approve the sign-in.", size: 12, color: .secondaryLabelColor)
+        ])
+        let imageRow = NSStackView()
+        imageRow.setViews([qrImage], in: .center)
+        addFull(qrScreen, [imageRow])
+        qrScreen.addArrangedSubview(cancel)
     }
 
     private func buildCaptcha() {

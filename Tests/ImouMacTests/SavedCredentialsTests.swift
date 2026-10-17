@@ -15,3 +15,16 @@ final class SavedCredentialsTests: XCTestCase {
         XCTAssertNil(SavedCredentials.load(service: service))
     }
 }
+
+final class SavedSessionTests: XCTestCase {
+    func testSessionRoundTripAndDelete() throws {
+        let service = "local.imou.peek.tests.\(UUID().uuidString)"
+        defer { SavedSession.delete(service: service) }
+        let session = SavedSession(username: "synthetic-user", token: "synthetic-token", sessionId: "synthetic-session",
+                                   host: "https://app-v2.easy4ipcloud.com")
+        try session.save(service: service)
+        XCTAssertEqual(SavedSession.load(service: service), session)
+        SavedSession.delete(service: service)
+        XCTAssertNil(SavedSession.load(service: service))
+    }
+}

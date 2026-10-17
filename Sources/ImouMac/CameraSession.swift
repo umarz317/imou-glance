@@ -57,13 +57,13 @@ extension ImouClient {
     func stream(for camera: ImouCamera, code: String, qualityID: String? = nil) async throws -> DirectStream {
         let media = Self.mediaConfig(camera.info)
         guard let mode = Int(media.string("streamEncryModel")), [0, 1, 3, 5].contains(mode) else {
-            throw ImouError.message("This camera uses an unsupported stream encryption configuration.")
+            throw ImouError.unsupported("This camera uses an unsupported stream encryption configuration.")
         }
         let protocolValue = media["streamProtocol"]
         let advertised = protocolValue as? [Any] ?? protocolValue.map { [$0] } ?? []
         let protocols = advertised.compactMap { Int(String(describing: $0)) }
         guard protocols.contains(1) else {
-            throw ImouError.message("This camera does not advertise the RTSV transport required by the embedded player.")
+            throw ImouError.unsupported("This camera does not advertise the RTSV transport required by the embedded player.")
         }
         let quality = camera.quality(id: qualityID)
         let streamId = quality.streamId

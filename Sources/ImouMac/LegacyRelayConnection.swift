@@ -138,7 +138,8 @@ final class LegacyRelayConnection {
     private func armTimeout() {
         timeout?.cancel()
         timeout = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: 30_000_000_000)
+            // Some cameras take 20-30 s to answer their first relay request; 60 s avoids restarting a slow wake-up.
+            try? await Task.sleep(nanoseconds: 60_000_000_000)
             guard !Task.isCancelled else { return }
             self?.fail("Camera relay timed out.")
         }

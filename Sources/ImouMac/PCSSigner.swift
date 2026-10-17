@@ -62,9 +62,11 @@ enum ImouError: LocalizedError {
     case message(String)
     case captcha(CaptchaChallenge)
     case terminalVerification
+    /// A camera setup the app cannot play; retrying will not help.
+    case unsupported(String)
     var errorDescription: String? {
         switch self {
-        case let .message(text): return text
+        case let .message(text), let .unsupported(text): return text
         case .captcha: return "Complete Imou’s verification challenge to continue signing in."
         case .terminalVerification: return "Imou requires a verification code to authorize this Mac."
         }

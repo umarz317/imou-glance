@@ -33,6 +33,8 @@ final class ImouClient {
     private var clockOffset: TimeInterval = 0
     private var generation = UUID()
     private var pendingSignInData: [String: Any]?
+    /// The current session in a form that can be restored on the next launch.
+    private(set) var savedSession: SavedSession?
     private let signer: PCSSigner
 
     init() {
@@ -86,16 +88,81 @@ final class ImouClient {
         if !data.string("failNum").isEmpty {
             throw ImouError.message(data.string("failNum") == "5" ? "Imou has temporarily locked sign-in. Try again later." : "Imou did not accept the account or password.")
         }
+        try await startSession(data)
+        self.pendingSignInData = nil
+    }
+
+    /// Shared by password and QR sign-in: both responses carry username, token, sessionId and an optional entry URL.
+    private func startSession(_ data: [String: Any]) async throws {
         let username = try data.required("username")
         let token = try data.required("token")
         sessionId = try data.required("sessionId")
         identity = .token(username, token: token)
         if !data.string("entryUrl").isEmpty { host = try Self.validatedHost(data.string("entryUrl")) }
         else if !data.string("entryUrlV2").isEmpty { host = try Self.validatedHost(data.string("entryUrlV2")) }
+        try await login()
+        savedSession = SavedSession(username: username, token: token, sessionId: sessionId ?? "", host: host.absoluteString)
+    }
+
+    private func login() async throws {
         let login = try await request("user.account.Login", data: ["timezoneOffset": NSNull()])
         if !login.string("entryUrl").isEmpty { host = try Self.validatedHost(login.string("entryUrl")) }
         else if !login.string("entryUrlV2").isEmpty { host = try Self.validatedHost(login.string("entryUrlV2")) }
-        self.pendingSignInData = nil
+    }
+
+    /// Restores a session saved after a QR sign-in; Login confirms Imou still accepts it.
+    func resume(_ saved: SavedSession) async throws {
+        signOut()
+        host = try Self.validatedHost(saved.host)
+        identity = .token(saved.username, token: saved.token)
+        sessionId = saved.sessionId
+        try await login()
+        savedSession = SavedSession(username: saved.username, token: saved.token, sessionId: saved.sessionId, host: host.absoluteString)
+    }
+
+    // QR sign-in, as in the Windows client (LCBaseLogic OnRequestGetLoginORCode / OnRequestQueryLoginORCode):
+    // both calls use the pre-login service identity; the phone app scans the code and approves it.
+
+    /// Starts a QR sign-in and returns the code to poll plus the PNG Imou rendered for it.
+    func loginQRCode(size: Int) async throws -> (code: String, image: Data) {
+        signOut()
+        let data = try await qrRequest("user.account.GetLoginQRCode", data: ["width": size, "height": size], apiVersion: "138591")
+        let code = data.string("loginCode")
+        guard !code.isEmpty, let image = Self.qrImageData(data.string("QRCodeImage")) else {
+            throw ImouError.message(Self.qrUnavailable + " Imou returned a QR code this app cannot read.")
+        }
+        return (code, image)
+    }
+
+    /// Checks a QR sign-in once. Returns true once signed in, false while the code is still waiting.
+    func pollLoginQRCode(_ code: String) async throws -> Bool {
+        let data = try await qrRequest("user.account.QueryLoginQRCode", data: ["loginCode": code])
+        switch data.string("status") {
+        case "login":
+            try await startSession(data)
+            return true
+        case "cancel": throw ImouError.message("Sign-in was declined in the Imou app.")
+        case "expire": throw ImouError.message("The QR code expired. Show a new one to try again.")
+        default: return false
+        }
+    }
+
+    static let qrUnavailable = "QR sign-in is not available right now; Imou may have changed it. Sign in with your email or phone instead."
+
+    /// QR calls use Imou's private API; a rejection names the fallback instead of a bare error code.
+    private func qrRequest(_ method: String, data: [String: Any], apiVersion: String = "0") async throws -> [String: Any] {
+        do {
+            return try await request(method, data: data, verification: true, apiVersion: apiVersion)
+        } catch ImouError.message(let detail) {
+            throw ImouError.message(Self.qrUnavailable + " (" + detail + ")")
+        }
+    }
+
+    /// QRCodeImage is Base64 image data, optionally as a data URL.
+    static func qrImageData(_ value: String) -> Data? {
+        let payload = value.range(of: ";base64,").map { String(value[$0.upperBound...]) } ?? value
+        guard let data = Data(base64Encoded: payload, options: .ignoreUnknownCharacters), !data.isEmpty else { return nil }
+        return data
     }
 
     func verifyCaptcha(_ challenge: CaptchaChallenge, result: [String: Any]) async throws -> Bool {
@@ -159,6 +226,7 @@ final class ImouClient {
         identity = nil
         pendingSignInData = nil
         sessionId = nil
+        savedSession = nil
         host = URL(string: "https://app-v2.easy4ipcloud.com")!
         clockOffset = 0
     }
@@ -199,6 +267,10 @@ final class ImouClient {
         if (200...299).contains(status), code == 12112, method == "user.account.GetToken" {
             throw ImouError.terminalVerification
         }
+        // Authorizing a Mac needs the account's email or phone, which a QR or saved session does not have.
+        if (200...299).contains(status), code == 12112 {
+            throw ImouError.message("Imou needs to authorize this Mac first. Sign in once with your email or phone and password; QR sign-in works after that.")
+        }
         if (200...299).contains(status), code == 12114, ["user.account.GetToken", "common.validcode.GetValidCode"].contains(method) {
             let purpose: CaptchaPurpose = method == "common.validcode.GetValidCode" ? .terminalCode : .login
             throw ImouError.captcha(try CaptchaChallenge(data: object.object("data"), purpose: purpose))
@@ -208,7 +280,8 @@ final class ImouClient {
             let readable = detail.isEmpty || Int(detail) != nil ? "" : " " + String(detail.prefix(200))
             throw ImouError.message("Imou rejected \(method) (HTTP \(status)\(code.map { ", code \($0)" } ?? "")).\(readable)")
         }
-        if ["common.validcode.CheckGeeTest4", "common.validcode.GetValidCode", "user.account.GrantingCredit"].contains(method) { return object.object("data") }
+        if ["common.validcode.CheckGeeTest4", "common.validcode.GetValidCode", "user.account.GrantingCredit",
+            "user.account.QueryLoginQRCode"].contains(method) { return object.object("data") }
         guard let data = object["data"] as? [String: Any] else {
             throw ImouError.message("Imou returned an incomplete response for \(method).")
         }

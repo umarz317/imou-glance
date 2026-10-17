@@ -7,6 +7,9 @@ final class NativeMediaTransport: NSObject, URLSessionDataDelegate {
     private var legacyConnection: LegacyRelayConnection?
     private var framer = NativeMediaFramer()
     private var active = false
+    private var label = ""
+    private var bytes = 0
+    private var startedAt = Date()
     private let onOpen: () -> Void
     private let onPacket: (Data) -> Void
     private let onError: (String) -> Void
@@ -18,8 +21,12 @@ final class NativeMediaTransport: NSObject, URLSessionDataDelegate {
         self.onError = onError
     }
 
-    func start(_ request: URLRequest) {
+    func start(_ request: URLRequest, label: String = "") {
         stop()
+        self.label = label
+        bytes = 0
+        startedAt = Date()
+        StreamLog.logger.info("relay start \(label, privacy: .public)")
         guard request.url?.scheme == "https", request.httpMethod == "GET" else {
             onError("Unsupported secure camera request."); return
         }
@@ -37,7 +44,8 @@ final class NativeMediaTransport: NSObject, URLSessionDataDelegate {
         config.httpCookieStorage = nil
         config.urlCredentialStorage = nil
         config.urlCache = nil
-        config.timeoutIntervalForRequest = 30
+        // Matches LegacyRelayConnection: a slow camera can take 20-30 s to answer the first request.
+        config.timeoutIntervalForRequest = 60
         config.timeoutIntervalForResource = 24 * 60 * 60
         let session = URLSession(configuration: config, delegate: self, delegateQueue: .main)
         self.session = session
@@ -46,6 +54,9 @@ final class NativeMediaTransport: NSObject, URLSessionDataDelegate {
     }
 
     func stop() {
+        if active {
+            StreamLog.logger.info("relay stop \(self.label, privacy: .public) bytes=\(self.bytes) after=\(Int(Date().timeIntervalSince(self.startedAt)))s")
+        }
         active = false
         task?.cancel()
         task = nil
@@ -58,6 +69,7 @@ final class NativeMediaTransport: NSObject, URLSessionDataDelegate {
 
     private func fail(_ message: String) {
         guard active else { return }
+        StreamLog.logger.error("relay fail \(self.label, privacy: .public): \(message, privacy: .public)")
         stop()
         onError(message)
     }
@@ -99,12 +111,14 @@ final class NativeMediaTransport: NSObject, URLSessionDataDelegate {
         if type.contains("-rtpxav") { framer = NativeMediaFramer(format: .privateRTP, preambleLength: preambleLength) }
         else if type.contains("-xav") { framer = NativeMediaFramer(format: .privateXAV, preambleLength: preambleLength) }
         else { fail("Camera relay returned an unsupported media format."); return false }
+        StreamLog.logger.info("relay open \(self.label, privacy: .public) after=\(Int(Date().timeIntervalSince(self.startedAt)))s")
         onOpen()
         return true
     }
 
     private func receive(_ data: Data) {
         guard active else { return }
+        bytes += data.count
         do {
             for packet in try framer.append(data) { onPacket(packet) }
         } catch { fail("Camera returned an unsupported media packet.") }

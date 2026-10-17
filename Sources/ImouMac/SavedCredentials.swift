@@ -1,28 +1,26 @@
 import Foundation
 import Security
 
-/// Opt-in sign-in details, kept only in the login Keychain. Camera keys and session tokens are never saved.
-struct SavedCredentials: Codable, Equatable {
-    var account: String
-    var password: String
-    var areaCode: String
+/// A Codable record kept as one generic password in the login Keychain, readable on this Mac only.
+protocol KeychainRecord: Codable {
+    static var service: String { get }
+}
 
-    static let service = "local.imou.peek.account"
-
+extension KeychainRecord {
     private static func query(service: String) -> [String: Any] {
         [kSecClass as String: kSecClassGenericPassword,
          kSecAttrService as String: service,
          kSecAttrAccount as String: "default"]
     }
 
-    static func load(service: String = service) -> SavedCredentials? {
+    static func load(service: String = service) -> Self? {
         var query = query(service: service)
         query[kSecReturnData as String] = true
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         var result: CFTypeRef?
         guard SecItemCopyMatching(query as CFDictionary, &result) == errSecSuccess,
               let data = result as? Data else { return nil }
-        return try? JSONDecoder().decode(SavedCredentials.self, from: data)
+        return try? JSONDecoder().decode(Self.self, from: data)
     }
 
     func save(service: String = Self.service) throws {
@@ -43,4 +41,24 @@ struct SavedCredentials: Codable, Equatable {
     static func delete(service: String = service) {
         SecItemDelete(query(service: service) as CFDictionary)
     }
+}
+
+/// Opt-in password sign-in details. Camera keys are never saved.
+struct SavedCredentials: KeychainRecord, Equatable {
+    var account: String
+    var password: String
+    var areaCode: String
+
+    static let service = "local.imou.peek.account"
+}
+
+/// Opt-in Imou session from a QR sign-in, which has no password to save. Imou can revoke it at any time;
+/// a rejected session is deleted and the user signs in again.
+struct SavedSession: KeychainRecord, Equatable {
+    var username: String
+    var token: String
+    var sessionId: String
+    var host: String
+
+    static let service = "local.imou.peek.session"
 }

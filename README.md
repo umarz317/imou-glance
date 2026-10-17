@@ -30,7 +30,8 @@
 ## Features
 
 - **Sign in** with your Imou email or phone number, including Imou's security
-  puzzle and "Authorize this Mac" step.
+  puzzle and "Authorize this Mac" step, or **scan a QR code** with the Imou Life
+  app (works for accounts that use Apple or Google sign-in).
 - **Watch live**, muted, one camera at a time or **two or four at once**.
 - **Pick video quality** per camera from what the camera offers.
 - **Recover on its own** after drops, stalls and sleep.
@@ -40,7 +41,7 @@
 
 Requires an Apple Silicon Mac on **macOS 15.2 or later**.
 
-1. Download **Imou-Glance-1.0.0-arm64.zip** from the
+1. Download **Imou-Glance-1.1.0-arm64.zip** from the
    [latest release](https://github.com/umarz317/imou-glance/releases/latest).
 2. Unzip it and move **Imou Glance.app** to Applications.
 3. Open it. The app is signed with a Developer ID and notarized by Apple, so it
@@ -91,6 +92,7 @@ changes resolution.
 | Item | Where | Cleared by |
 | --- | --- | --- |
 | Account, password, country code (if **Remember me** is on) | Login Keychain, this Mac only | **Sign Out** |
+| Imou session token after a QR sign-in (if **Remember me** is on) | Login Keychain, this Mac only | **Sign Out**, or Imou rejecting it |
 | Last camera and per-camera quality | Preferences | **Sign Out** |
 | 1 / 2 / 4 camera layout | Preferences | Never (it's a view setting) |
 | Random terminal identifier | Preferences | Never |
@@ -183,7 +185,7 @@ Passing tests don't prove live playback.
   and follow local privacy and recording laws.
 - **Security trade-offs.** The app pins one expired relay certificate (see
   [Security note](#security-note-relay-certificate)) and can store your Imou
-  password in the Keychain. Consider this on shared or managed Macs.
+  password, or a QR sign-in's session token, in the Keychain. Consider this on shared or managed Macs.
 - **Third-party files.** The player files in `Sources/ImouMac/PlayerAssets` are
   unmodified Imou Web Video SDK assets owned by their authors; see
   [PROVENANCE.txt](Sources/ImouMac/PlayerAssets/PROVENANCE.txt).

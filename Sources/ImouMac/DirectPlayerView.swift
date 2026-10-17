@@ -229,7 +229,12 @@ final class DirectPlayerView: NSView {
                 self?.failNativeTransport(id, message: message)
             })
             nativeTransport = transport
-            transport.start(request)
+            transport.start(request, label: StreamLog.camera(stream.deviceId))
+            // Say why a slow camera is still connecting instead of looking stuck.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak self, weak transport] in
+                guard let self, let transport, self.nativeTransport === transport, !self.nativeOpened else { return }
+                self.report("Waiting for the camera to respond…")
+            }
         }
 
         private func deliverNextPacket(_ id: String) {
@@ -273,6 +278,7 @@ final class DirectPlayerView: NSView {
         private func report(_ text: String, recoverable: Bool = false) {
             guard !closed, status != text else { return }
             status = text
+            StreamLog.logger.info("player \(StreamLog.camera(self.currentStream?.deviceId ?? ""), privacy: .public): \(text, privacy: .public)")
             // Only the first failure asks for a reconnect; the replacement player gets its own chance.
             let notify = recoverable && !failed
             if recoverable { failed = true }

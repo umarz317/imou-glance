@@ -43,7 +43,9 @@ final class AppLifecycle: NSObject, NSApplicationDelegate {
         }
 
         guard let index = arguments.firstIndex(of: "--credentials-file") else {
-            if let saved = SavedCredentials.load() {
+            if let session = SavedSession.load() {
+                model.resumeSession(session)
+            } else if let saved = SavedCredentials.load() {
                 model.signIn(account: saved.account, password: saved.password, areaCode: saved.areaCode)
             }
             return
