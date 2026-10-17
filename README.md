@@ -10,6 +10,7 @@
   <img src="https://img.shields.io/badge/Swift-5.9-F05138?logo=swift&logoColor=white" alt="Swift 5.9">
   <img src="https://img.shields.io/badge/UI-AppKit%20%C2%B7%20Liquid%20Glass-F06620" alt="AppKit with Liquid Glass">
   <img src="https://img.shields.io/badge/Unofficial-B42318" alt="Unofficial">
+  <a href="https://github.com/umarz317/imou-glance/releases/latest"><img src="https://img.shields.io/github/v/release/umarz317/imou-glance?label=download&color=F06620" alt="Download latest release"></a>
 </p>
 
 <p align="center">
@@ -35,18 +36,33 @@
 - **Recover on its own** after drops, stalls and sleep.
 - **Remember** your sign-in (Keychain), last camera, quality and layout.
 
-## Install
+## Download
 
-Requires an Apple Silicon Mac on **macOS 15.2 or later**. Building needs Xcode
-with the macOS 26 SDK or newer (the glass look falls back gracefully on older
-macOS).
+Requires an Apple Silicon Mac on **macOS 15.2 or later**.
+
+1. Download **Imou-Glance-1.0.0-arm64.zip** from the
+   [latest release](https://github.com/umarz317/imou-glance/releases/latest).
+2. Unzip it and move **Imou Glance.app** to Applications.
+3. Open it. The app is signed with a Developer ID and notarized by Apple, so it
+   opens without Gatekeeper warnings.
+
+## Build from source
+
+Building needs Xcode with the macOS 26 SDK or newer (the glass look falls back
+gracefully on older macOS).
 
 ```sh
 bash scripts/build-app.sh
 open "build/Imou Glance.app"
 ```
 
-The build creates `build/Imou Glance.app` with a local ad hoc signature.
+This makes `build/Imou Glance.app` with a local ad hoc signature. For a signed,
+notarized release zip, pass a Developer ID identity and a `notarytool`
+credentials profile:
+
+```sh
+SIGN_IDENTITY="Developer ID Application: …" NOTARY_PROFILE=notary bash scripts/build-app.sh
+```
 
 ## Use
 
